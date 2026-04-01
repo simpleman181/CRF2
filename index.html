@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRF — Clinical Data Entry</title>
+<script>
+var SUPABASE_URL  = "https://blayyyoyagrhzbaydbes.supabase.co";
+var SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJsYXl5eW95YWdyaHpiYXlkYmVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4ODY2MjksImV4cCI6MjA5MDQ2MjYyOX0.FCxVa5YVPHH-LTMpYmtLfENAnINvN6F7uM5Ys2EfPKk";
+
+// ── USER CREDENTIALS (admin configures user-centre assignments) ──
+// Format: username: { password, centres: [allowed centre IDs], studies: [allowed study IDs], displayName }
+var USER_CREDENTIALS = {
+  "user01": { password: "User01@CRF", centres: ["CTR-01"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 01 - Mumbai" },
+  "user02": { password: "User02@CRF", centres: ["CTR-02"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 02 - Delhi" },
+  "user03": { password: "User03@CRF", centres: ["CTR-03"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 03 - Bangalore" },
+  "user04": { password: "User04@CRF", centres: ["CTR-01","CTR-02"], studies: ["STD-001"], displayName: "User 04 - Multi-Centre" },
+  "user05": { password: "User05@CRF", centres: ["CTR-01"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 05" },
+  "user06": { password: "User06@CRF", centres: ["CTR-02"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 06" },
+  "user07": { password: "User07@CRF", centres: ["CTR-03"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 07" },
+  "user08": { password: "User08@CRF", centres: ["CTR-01"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 08" },
+  "user09": { password: "User09@CRF", centres: ["CTR-02"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 09" },
+  "user10": { password: "User10@CRF", centres: ["CTR-03"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 10" },
+  "user11": { password: "User11@CRF", centres: ["CTR-01"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 11" },
+  "user12": { password: "User12@CRF", centres: ["CTR-02"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 12" },
+  "user13": { password: "User13@CRF", centres: ["CTR-03"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 13" },
+  "user14": { password: "User14@CRF", centres: ["CTR-01"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 14" },
+  "user15": { password: "User15@CRF", centres: ["CTR-02"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 15" },
+  "user16": { password: "User16@CRF", centres: ["CTR-03"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 16" },
+  "user17": { password: "User17@CRF", centres: ["CTR-01"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 17" },
+  "user18": { password: "User18@CRF", centres: ["CTR-02"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 18" },
+  "user19": { password: "User19@CRF", centres: ["CTR-03"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 19" },
+  "user20": { password: "User20@CRF", centres: ["CTR-01","CTR-02","CTR-03"], studies: ["STD-001","STD-002","STD-003"], displayName: "User 20 - All Centres" }
+};
+</script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f5f4f0;--surface:#fff;--border:#d0cdc5;--border-strong:#9a9690;
+    --accent:#1a4a8a;--accent-light:#e8eef8;--accent2:#b84c1a;
+    --text:#1c1b19;--text-muted:#6b6862;--success:#2a7a4b;--warning:#c4760f;
+    --mandatory:#b84c1a;--row-alt:#fafaf8;--input-bg:#fcfcfb;--radius:4px;
+    --shadow:0 1px 4px rgba(0,0,0,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13.5px;line-height:1.5}
+
+  /* LOGIN SCREEN */
+  .login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1a4a8a 0%,#0d2d5a 100%)}
+  .login-box{background:#fff;border-radius:10px;padding:40px;width:380px;box-shadow:0 8px 40px rgba(0,0,0,.3)}
+  .login-logo{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:var(--text-muted);margin-bottom:20px;text-align:center;text-transform:uppercase}
+  .login-box h2{font-size:22px;font-weight:700;color:var(--accent);margin-bottom:6px;text-align:center}
+  .login-box p{font-size:12.5px;color:var(--text-muted);text-align:center;margin-bottom:28px}
+  .login-field{margin-bottom:14px}
+  .login-field label{display:block;font-size:11.5px;font-weight:600;color:var(--text-muted);margin-bottom:5px;letter-spacing:.03em}
+  .login-field input{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:14px;background:#fafafa;transition:border-color .15s}
+  .login-field input:focus{outline:none;border-color:var(--accent);background:#fff}
+  .login-btn{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-family:'IBM Plex Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;transition:background .15s;letter-spacing:.02em}
+  .login-btn:hover{background:#153d74}
+  .login-error{color:var(--mandatory);font-size:12px;margin-top:10px;text-align:center;font-weight:500}
+  .login-note{font-size:11px;color:var(--text-muted);margin-top:14px;text-align:center;line-height:1.5}
+
+  /* TOP BAR */
+  .top-bar{background:var(--accent);color:#fff;padding:10px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+  .top-bar .logo{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:.08em;opacity:.9}
+  .version-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:12px;margin-left:10px}
+  .user-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;background:rgba(255,255,255,.2);padding:3px 10px;border-radius:12px;color:#fff;border:1px solid rgba(255,255,255,.3)}
+  .bar-actions{display:flex;gap:8px;align-items:center}
+  .top-bar button{font-size:12px;font-family:'IBM Plex Sans',sans-serif;padding:5px 14px;border-radius:3px;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;cursor:pointer;font-weight:500;transition:background .15s}
+  .top-bar button:hover{background:rgba(255,255,255,.18)}
+  .btn-lock-submit{background:#c0392b !important;border-color:#c0392b !important;color:#fff !important;font-weight:700 !important;font-size:12px !important;padding:6px 16px !important;border-radius:3px !important;letter-spacing:.02em;box-shadow:0 2px 6px rgba(192,57,43,.4)}
+  .btn-lock-submit:hover{background:#a93226 !important;border-color:#a93226 !important}
+  .btn-lock-submit.locked{background:#27ae60 !important;border-color:#27ae60 !important;cursor:not-allowed !important}
+
+  .container{max-width:1100px;margin:28px auto 60px;padding:0 20px}
+  .notice{background:#fff8ed;border:1px solid #f0c060;border-radius:var(--radius);padding:10px 16px;font-size:12.5px;color:#7a5800;margin-bottom:18px;display:flex;gap:10px;align-items:flex-start}
+  .locked-banner{background:#e8f8ee;border:1px solid #4caf80;border-radius:var(--radius);padding:12px 16px;font-size:13px;color:#1a5c3a;margin-bottom:18px;display:flex;gap:10px;align-items:center;font-weight:600}
+
+  .section-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;box-shadow:var(--shadow);overflow:hidden}
+  .section-header{background:var(--accent);color:#fff;padding:10px 18px;font-size:13px;font-weight:600;letter-spacing:.04em;display:flex;align-items:center;gap:8px}
+  .sec-num{background:rgba(255,255,255,.2);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;flex-shrink:0}
+  .section-sub-header{background:#e8eef8;color:var(--accent);padding:7px 18px;font-size:12px;font-weight:600;border-bottom:1px solid var(--border);letter-spacing:.03em}
+  .section-body{padding:16px 18px}
+
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px}
+  .form-grid.cols-2{grid-template-columns:repeat(2,1fr)}
+  .form-grid.cols-3{grid-template-columns:repeat(3,1fr)}
+  .form-grid.cols-4{grid-template-columns:repeat(4,1fr)}
+  .form-field{display:flex;flex-direction:column;gap:4px}
+  .form-field.full-width{grid-column:1/-1}
+  .form-field.span-2{grid-column:span 2}
+
+  label{font-size:11.5px;color:var(--text-muted);font-weight:500;letter-spacing:.02em}
+  label .req{color:var(--mandatory);margin-left:2px;font-weight:700}
+  label .tag{display:inline-block;font-size:9.5px;background:var(--accent-light);color:var(--accent);border-radius:2px;padding:1px 5px;margin-left:5px;font-family:'IBM Plex Mono',monospace;vertical-align:middle}
+  label .tag.auto{background:#e6f4ea;color:var(--success)}
+
+  input[type=text],input[type=date],input[type=number],input[type=email],input[type=tel],select,textarea{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--input-bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;transition:border-color .15s,box-shadow .15s;-webkit-appearance:none}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(26,74,138,.1)}
+  input[readonly],input.auto-filled{background:#f0f4fb;color:var(--accent);font-style:italic;border-style:dashed}
+  select{cursor:pointer}
+  textarea{resize:vertical;min-height:60px}
+
+  /* Form locked state */
+  body.form-locked input:not([readonly]),body.form-locked select,body.form-locked textarea{background:#f5f5f5;pointer-events:none;opacity:.8}
+  body.form-locked .btn-add,body.form-locked .btn-del{display:none}
+
+  .radio-group{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:6px 0}
+  .radio-group label{display:flex;align-items:center;gap:5px;color:var(--text);font-size:13px;cursor:pointer;font-weight:400}
+  .radio-group input[type=radio]{width:14px;height:14px;cursor:pointer;accent-color:var(--accent)}
+
+  .score-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+  .score-table th{background:#e8eef8;color:var(--accent);padding:7px 10px;text-align:left;font-weight:600;font-size:12px;border:1px solid var(--border)}
+  .score-table td{padding:6px 10px;border:1px solid var(--border);vertical-align:middle}
+  .score-table tr:nth-child(even) td{background:var(--row-alt)}
+  .score-options{display:flex;gap:6px;flex-wrap:wrap}
+  .score-option{display:flex;align-items:center;gap:4px;background:#f2f6fc;border:1px solid #c5d5ec;border-radius:3px;padding:3px 8px;cursor:pointer;font-size:12px;color:var(--text-muted);transition:all .12s;user-select:none}
+  .score-option input[type=radio]{accent-color:var(--accent);width:12px;height:12px}
+  .score-option:has(input:checked){background:var(--accent);color:#fff;border-color:var(--accent)}
+  .score-total{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-light);padding:4px 10px;border-radius:3px;text-align:center}
+
+  .vitals-table{width:100%;border-collapse:collapse;font-size:13px}
+  .vitals-table th{background:#e8eef8;color:var(--accent);padding:8px 12px;font-weight:600;font-size:12px;border:1px solid var(--border);text-align:left}
+  .vitals-table td{padding:6px 10px;border:1px solid var(--border);vertical-align:middle}
+  .vitals-table tr:nth-child(even) td{background:var(--row-alt)}
+  .vitals-table input{max-width:140px}
+
+  .rep-row{display:grid;gap:8px;align-items:end;background:#fafaf8;border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;position:relative}
+  .rep-row .row-num{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-muted);background:var(--border);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;position:absolute;top:8px;left:8px}
+  .rep-row.has-num{padding-left:36px}
+  .btn-add,.btn-del{font-size:11.5px;padding:5px 12px;border-radius:3px;border:1.5px solid;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-weight:500;transition:all .12s}
+  .btn-add{border-color:var(--accent);color:var(--accent);background:#fff}
+  .btn-add:hover{background:var(--accent);color:#fff}
+  .btn-del{border-color:#d44;color:#d44;background:#fff;padding:3px 8px;font-size:11px}
+  .btn-del:hover{background:#d44;color:#fff}
+  .rep-actions{margin-top:8px;display:flex;gap:8px;align-items:center}
+
+  .compliance-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .compliance-table th{background:#e8eef8;color:var(--accent);padding:7px 10px;font-size:12px;font-weight:600;border:1px solid var(--border);text-align:center}
+  .compliance-table th.row-header{text-align:left}
+  .compliance-table td{padding:6px 8px;border:1px solid var(--border);text-align:center;vertical-align:middle}
+  .compliance-table td.row-label{text-align:left;font-weight:500;background:#f5f6fb;color:var(--text-muted);font-size:12px}
+  .compliance-table input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+
+  .ae-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .ae-table th{background:#e8eef8;color:var(--accent);padding:7px 10px;font-size:12px;font-weight:600;border:1px solid var(--border);text-align:left}
+  .ae-table td{padding:6px 8px;border:1px solid var(--border);vertical-align:middle}
+  .ae-table input,.ae-table select{font-size:12px;padding:5px 7px}
+
+  .concom-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .concom-table th{background:#e8eef8;color:var(--accent);padding:7px 10px;font-size:12px;font-weight:600;border:1px solid var(--border);text-align:left}
+  .concom-table td{padding:5px 7px;border:1px solid var(--border);vertical-align:middle}
+  .concom-table input{font-size:12px;padding:4px 6px}
+
+  .form-footer{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow)}
+  .footer-meta{font-size:11.5px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace}
+  .footer-actions{display:flex;gap:10px;flex-wrap:wrap}
+  .btn-primary,.btn-secondary,.btn-excel,.btn-print{font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;padding:8px 20px;border-radius:3px;cursor:pointer;border:none;transition:all .15s}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:#153d74}
+  .btn-secondary{background:#fff;color:var(--accent);border:1.5px solid var(--accent)}
+  .btn-secondary:hover{background:var(--accent-light)}
+  .btn-excel{background:#1a7a3a;color:#fff}
+  .btn-excel:hover{background:#145f2d}
+  .btn-print{background:#5a5a5a;color:#fff}
+  .btn-print:hover{background:#3a3a3a}
+  .btn-lock-footer{background:#c0392b;color:#fff;font-weight:700;font-size:13px;padding:8px 22px;border-radius:3px;cursor:pointer;border:2px solid #c0392b;transition:all .15s;box-shadow:0 2px 8px rgba(192,57,43,.3)}
+  .btn-lock-footer:hover{background:#a93226;border-color:#a93226}
+  .btn-lock-footer.locked{background:#27ae60;border-color:#27ae60;cursor:not-allowed}
+
+  /* Subject selector */
+  .subject-selector{background:#e8eef8;border:1px solid var(--accent);border-radius:var(--radius);padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .subject-selector label{font-size:12px;font-weight:600;color:var(--accent);min-width:80px}
+  .subject-selector select{max-width:200px;font-size:13px;padding:6px 10px}
+  .subject-selector .subject-status{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 10px;border-radius:12px}
+  .subject-status.draft{background:#fff3cd;color:#856404}
+  .subject-status.saved{background:#d4edda;color:#155724}
+  .subject-status.locked{background:#d4edda;color:#155724;font-weight:700}
+
+  /* Modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:center;justify-content:center}
+  .modal-overlay.active{display:flex}
+  .modal-box{background:#fff;border-radius:6px;padding:28px 32px;max-width:460px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center}
+  .modal-box h3{font-size:17px;color:var(--accent);margin-bottom:10px}
+  .modal-box.lock-modal h3{color:#c0392b}
+  .modal-box p{font-size:13px;color:var(--text-muted);margin-bottom:20px;line-height:1.6}
+  .modal-box .warning-icon{font-size:48px;margin-bottom:12px}
+  .modal-box .modal-btns{display:flex;gap:10px;justify-content:center}
+  .modal-box .spinner{width:40px;height:40px;border:4px solid #e8eef8;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .btn-confirm-lock{background:#c0392b;color:#fff;border:none;padding:10px 24px;border-radius:3px;font-size:14px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans',sans-serif}
+  .btn-confirm-lock:hover{background:#a93226}
+  .btn-cancel{background:#fff;color:var(--text-muted);border:1.5px solid var(--border);padding:10px 24px;border-radius:3px;font-size:14px;font-weight:600;cursor:pointer;font-family:'IBM Plex Sans',sans-serif}
+  .btn-cancel:hover{border-color:var(--accent);color:var(--accent)}
+
+  #toast{position:fixed;bottom:30px;right:30px;background:#1c1b19;color:#fff;padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;opacity:0;transform:translateY(10px);transition:all .25s;z-index:1000;pointer-events:none;max-width:340px}
+  #toast.show{opacity:1;transform:translateY(0)}
+  #toast.error{background:#8a1a1a}
+  #toast.success{background:#1a6a3a}
+
+  .info-note{font-size:11.5px;color:var(--text-muted);background:#f7f7f5;border-left:3px solid var(--border-strong);padding:6px 10px;border-radius:0 3px 3px 0;margin-top:8px}
+  .mt-8{margin-top:8px} .mt-12{margin-top:12px}
+
+  @media print{.top-bar,.form-footer,.btn-add,.btn-del,.login-screen,.subject-selector{display:none !important} .section-card{box-shadow:none;page-break-inside:avoid} body{background:#fff;font-size:12px} .container{max-width:100%;margin:0;padding:0 10px}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">◼ CRF SYSTEM · USER ACCESS</div>
+    <h2>Clinical Data Entry</h2>
+    <p>Login to enter study data for your assigned centre</p>
+    <div class="login-field">
+      <label>USERNAME</label>
+      <input type="text" id="loginUser" placeholder="e.g. user01" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>PASSWORD</label>
+      <input type="password" id="loginPass" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()" autocomplete="current-password">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Login →</button>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-note">Access is restricted to assigned centres only.<br>Contact admin if you need access changes.</div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="mainApp" style="display:none">
+
+<div class="top-bar">
+  <div style="display:flex;align-items:center;gap:14px">
+    <span class="logo">◼ CRF — CLINICAL DATA ENTRY</span>
+    <span class="version-badge" id="versionLabel">v1.0</span>
+  </div>
+  <div class="bar-actions">
+    <span class="user-badge" id="userBadge">User</span>
+    <button onclick="saveToDatabase()">💾 Save</button>
+    <button onclick="printForm()">🖨 Print</button>
+    <button class="btn-lock-submit" id="lockSubmitBtn" onclick="openLockModal()">🔒 Lock for Submission</button>
+    <button onclick="doLogout()" style="border-color:rgba(255,255,255,.3);font-size:11px">Logout</button>
+  </div>
+</div>
+
+<div class="container">
+  <div id="lockedBanner" class="locked-banner" style="display:none">
+    🔒 This form has been locked for submission. No further changes are allowed. Contact admin if changes are required.
+  </div>
+
+  <div class="notice">
+    <span>ℹ️</span>
+    <span>Fields marked <strong style="color:var(--mandatory)">*</strong> are mandatory. Fields marked <strong style="color:var(--accent)">#</strong> use dropdowns. Age auto-calculated from DOB. <strong>Save</strong> stores your data. <strong>Lock for Submission</strong> finalises the form — no changes allowed after locking.</span>
+  </div>
+
+  <!-- SUBJECT SELECTOR -->
+  <div class="subject-selector">
+    <label>Subject:</label>
+    <select id="subjectSelector" onchange="loadSubjectData()">
+      <option value="">— New Subject —</option>
+    </select>
+    <span class="subject-status draft" id="subjectStatusBadge">New</span>
+    <button class="btn-add" onclick="newSubject()" style="font-size:12px;padding:4px 12px">+ New Subject</button>
+    <span style="font-size:11.5px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace" id="subjectCountLabel"></span>
+  </div>
+
+  <!-- S1: STUDY & SITE -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">1</span> Study &amp; Site Details</div>
+    <div class="section-body">
+      <div class="form-grid cols-4">
+        <div class="form-field">
+          <label>*Study Name</label>
+          <input type="text" id="studyName" readonly class="auto-filled" placeholder="Auto-populated">
+        </div>
+        <div class="form-field">
+          <label>*Study ID <span class="tag">#</span></label>
+          <select id="studyId" onchange="onStudySelect()">
+            <option value="">— Select —</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>*Centre ID <span class="tag">#</span></label>
+          <select id="centreId" onchange="onCentreSelect()">
+            <option value="">— Select —</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>*Location <span class="tag auto">AUTO</span></label>
+          <input type="text" id="location" readonly class="auto-filled" placeholder="Auto-populated">
+        </div>
+        <div class="form-field span-2">
+          <label>*Investigator's Name</label>
+          <input type="text" id="invName" readonly class="auto-filled" placeholder="Auto-populated from Centre ID">
+        </div>
+        <div class="form-field span-2">
+          <label>Clinic Name &amp; Address</label>
+          <input type="text" id="clinicAddr" readonly class="auto-filled" placeholder="Auto-populated from Centre ID">
+        </div>
+        <div class="form-field"><label>Telephone No.</label><input type="tel" id="telNo" placeholder="STD + number"></div>
+        <div class="form-field"><label>*Mobile No.</label><input type="tel" id="mobNo" placeholder="10-digit mobile"></div>
+        <div class="form-field"><label>*E-mail</label><input type="email" id="emailInv" placeholder="investigator@clinic.com"></div>
+        <div class="form-field"><label>*CRC Name (Mr./Ms.)</label><input type="text" id="crcName" placeholder="CRC full name"></div>
+        <div class="form-field"><label>*CRC Mobile No.</label><input type="tel" id="crcMob" placeholder="10-digit mobile"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S2: PATIENT -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">2</span> Patient Details</div>
+    <div class="section-body">
+      <div class="form-grid cols-4">
+        <div class="form-field"><label>*Subject No. / ID</label><input type="text" id="subjectId" placeholder="e.g. SUB-001"></div>
+        <div class="form-field span-2"><label>Subject's Initials <small style="font-style:italic;color:var(--text-muted)">(initials only)</small></label><input type="text" id="subjectInitials" placeholder="e.g. A.B.C." maxlength="10"></div>
+        <div class="form-field"><label>*Sex</label>
+          <div class="radio-group">
+            <label><input type="radio" name="sex" value="F"> Female</label>
+            <label><input type="radio" name="sex" value="M"> Male</label>
+            <label><input type="radio" name="sex" value="O"> Others</label>
+          </div>
+        </div>
+        <div class="form-field"><label>Date of Birth</label><input type="date" id="dob" onchange="calcAge()"></div>
+        <div class="form-field"><label>Enrolment Date</label><input type="date" id="enrolDate" onchange="calcAge()"></div>
+        <div class="form-field"><label>Age (months) <span class="tag auto">AUTO</span></label><input type="number" id="ageMonths" readonly class="auto-filled" placeholder="Calculated"></div>
+        <div class="form-field"><label>Age (years) <span class="tag auto">AUTO</span></label><input type="number" id="ageYears" readonly class="auto-filled" placeholder="Calculated"></div>
+        <div class="form-field"><label>*Weight (Kg)</label><input type="number" id="weightPt" step="0.1" min="1" max="200" placeholder="kg"></div>
+        <div class="form-field"><label>*Height (cm) <span class="tag auto">CONVERTS</span></label><input type="number" id="heightCm" step="0.1" min="30" max="250" placeholder="cm" oninput="convertHeight()"></div>
+        <div class="form-field"><label>Height (ft/in) <span class="tag auto">AUTO</span></label><input type="text" id="heightFt" readonly class="auto-filled" placeholder="Calculated"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S3: MEDICAL HISTORY -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">3</span> Medical History</div>
+    <div class="section-body">
+      <div class="repeatable-section" id="medHistRows">
+        <div class="rep-row has-num" style="grid-template-columns:1fr 3fr 160px 160px auto">
+          <span class="row-num">1</span>
+          <div class="form-field"><label>Condition</label><input type="text" placeholder="e.g. Dengue"></div>
+          <div class="form-field"><label>Start Date</label><input type="date"></div>
+          <div class="form-field"><label>Stop Date</label><input type="date"></div>
+          <div style="display:flex;align-items:flex-end;padding-bottom:1px"><button class="btn-del" onclick="delRow(this)">✕</button></div>
+        </div>
+      </div>
+      <div class="rep-actions"><button class="btn-add" onclick="addMedHist()">+ Add Row</button></div>
+    </div>
+  </div>
+
+  <!-- S4: CONCURRENT CONDITIONS -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">4</span> Concurrent Conditions</div>
+    <div class="section-body">
+      <div class="repeatable-section" id="concRows">
+        <div class="rep-row has-num" style="grid-template-columns:1fr 3fr 160px 160px 110px auto">
+          <span class="row-num">1</span>
+          <div class="form-field"><label>Condition</label><input type="text" placeholder="Condition name"></div>
+          <div class="form-field"><label>Start Date</label><input type="date"></div>
+          <div class="form-field"><label>Stop Date</label><input type="date"></div>
+          <div class="form-field"><label>Status</label><select><option value="">Select</option><option>Ongoing</option><option>Resolved</option></select></div>
+          <div style="display:flex;align-items:flex-end;padding-bottom:1px"><button class="btn-del" onclick="delRow(this)">✕</button></div>
+        </div>
+      </div>
+      <div class="rep-actions"><button class="btn-add" onclick="addConcRow()">+ Add Row</button></div>
+    </div>
+  </div>
+
+  <!-- S5: PHYSICAL EXAM -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">5</span> Physical Examination — First Visit (Day 1)</div>
+    <div class="section-body">
+      <div class="form-grid cols-3 mt-8">
+        <div class="form-field"><label>General Appearance</label><textarea id="pe_ga" rows="2" placeholder="NAD / findings"></textarea></div>
+        <div class="form-field"><label>CVS</label><textarea id="pe_cvs" rows="2" placeholder="NAD / findings"></textarea></div>
+        <div class="form-field"><label>RS</label><textarea id="pe_rs" rows="2" placeholder="NAD / findings"></textarea></div>
+        <div class="form-field"><label>GIT</label><textarea id="pe_git" rows="2" placeholder="NAD / findings"></textarea></div>
+        <div class="form-field"><label>CNS</label><textarea id="pe_cns" rows="2" placeholder="NAD / findings"></textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S6: VITALS DAY 1 -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">6</span> Vital Signs — Day 1 (Baseline)</div>
+    <div class="section-body">
+      <table class="vitals-table">
+        <thead><tr><th>Parameter</th><th>Value</th><th>Unit</th></tr></thead>
+        <tbody>
+          <tr><td>Weight</td><td><input type="number" id="v1_weight" step="0.1" placeholder="kg" oninput="calcBMI('v1')"></td><td>kg</td></tr>
+          <tr><td>BMI <span class="tag auto" style="font-size:9px">AUTO</span></td><td><input type="text" id="v1_bmi" readonly class="auto-filled"></td><td>kg/m²</td></tr>
+          <tr><td>Pulse Rate</td><td><input type="number" id="v1_pulse" placeholder="bpm"></td><td>beats/min</td></tr>
+          <tr><td>Temperature</td><td><input type="number" id="v1_temp" step="0.1" placeholder="°C"></td><td>°C</td></tr>
+          <tr><td>Respiratory Rate</td><td><input type="number" id="v1_rr" placeholder="breaths/min"></td><td>breaths/min</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- S7: CLINICAL SCORES DAY 1 -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">7</span> Clinical Assessment Scores — Day 1 (Baseline)</div>
+    <div class="section-sub-header">General Symptoms</div>
+    <div class="section-body">
+      <table class="score-table">
+        <thead><tr><th style="width:38%">Sign / Symptom</th><th>Score Options</th><th style="width:80px;text-align:center">Score</th></tr></thead>
+        <tbody>
+          <tr><td>Fever</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_fever" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_fever" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d1_fever" value="2" onchange="updateScores()"><span>2</span></label><label class="score-option"><input type="radio" name="d1_fever" value="3" onchange="updateScores()"><span>3</span></label></div></td><td><div class="score-total" id="d1_fever_score">—</div></td></tr>
+          <tr><td>Chills/Rigors</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_chills" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_chills" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d1_chills" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d1_chills_score">—</div></td></tr>
+          <tr><td>Headache</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_headache" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_headache" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d1_headache" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d1_headache_score">—</div></td></tr>
+          <tr><td>Cough</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_cough" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_cough" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d1_cough" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d1_cough_score">—</div></td></tr>
+          <tr><td>Rhinitis</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_rhinitis" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_rhinitis" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d1_rhinitis" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d1_rhinitis_score">—</div></td></tr>
+          <tr><td>Vomiting</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_vomit" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_vomit" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d1_vomit_score">—</div></td></tr>
+          <tr><td>In-appetite</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_inapp" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_inapp" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d1_inapp_score">—</div></td></tr>
+          <tr><td colspan="2" style="text-align:right;font-weight:600;font-size:12px;color:var(--accent)">General Subtotal:</td><td><div class="score-total" id="d1_gen_total">0</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="section-sub-header">Pharyngitis</div>
+    <div class="section-body">
+      <table class="score-table">
+        <thead><tr><th style="width:38%">Sign / Symptom</th><th>Score Options</th><th style="width:80px;text-align:center">Score</th></tr></thead>
+        <tbody>
+          <tr><td>Sore Throat</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_sorethroat" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_sorethroat" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d1_sorethroat" value="2" onchange="updateScores()"><span>2</span></label><label class="score-option"><input type="radio" name="d1_sorethroat" value="3" onchange="updateScores()"><span>3</span></label></div></td><td><div class="score-total" id="d1_sorethroat_score">—</div></td></tr>
+          <tr><td>Pharyngeal Erythema</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_phareryt" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_phareryt" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d1_phareryt" value="2" onchange="updateScores()"><span>2</span></label><label class="score-option"><input type="radio" name="d1_phareryt" value="3" onchange="updateScores()"><span>3</span></label></div></td><td><div class="score-total" id="d1_phareryt_score">—</div></td></tr>
+          <tr><td>Tonsil Size</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_tonsil" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_tonsil" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d1_tonsil" value="2" onchange="updateScores()"><span>2</span></label><label class="score-option"><input type="radio" name="d1_tonsil" value="3" onchange="updateScores()"><span>3</span></label></div></td><td><div class="score-total" id="d1_tonsil_score">—</div></td></tr>
+          <tr><td>Exudate on Tonsil</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_exudate" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_exudate" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d1_exudate_score">—</div></td></tr>
+          <tr><td>Painful Cervical Lymphadenopathy</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_lymph" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_lymph" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d1_lymph_score">—</div></td></tr>
+          <tr><td colspan="2" style="text-align:right;font-weight:600;font-size:12px;color:var(--accent)">Pharyngitis Subtotal:</td><td><div class="score-total" id="d1_pharyn_total">0</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="section-sub-header">Acute Otitis Media</div>
+    <div class="section-body">
+      <table class="score-table">
+        <thead><tr><th style="width:38%">Sign / Symptom</th><th>Score Options</th><th style="width:80px;text-align:center">Score</th></tr></thead>
+        <tbody>
+          <tr><td>Bulging of TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_bulge" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_bulge" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d1_bulge_score">—</div></td></tr>
+          <tr><td>Limited/Absent Mobility of TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_tmmob" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_tmmob" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d1_tmmob_score">—</div></td></tr>
+          <tr><td>Otalgia or Irritability</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_otalgia" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_otalgia" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d1_otalgia_score">—</div></td></tr>
+          <tr><td>Air Fluid Level Behind TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_airfluid" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_airfluid" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d1_airfluid_score">—</div></td></tr>
+          <tr><td>Erythema of TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_erythtm" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d1_erythtm" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d1_erythtm_score">—</div></td></tr>
+          <tr><td colspan="2" style="text-align:right;font-weight:600;font-size:12px;color:var(--accent)">Otitis Media Subtotal:</td><td><div class="score-total" id="d1_otitis_total">0</div></td></tr>
+          <tr style="background:#e8eef8"><td colspan="2" style="text-align:right;font-weight:700;font-size:13px;color:var(--accent)">🔢 TOTAL BASELINE SCORE:</td><td><div class="score-total" id="d1_grand_total" style="background:var(--accent);color:#fff;font-size:15px">0</div></td></tr>
+        </tbody>
+      </table>
+      <input type="hidden" id="sum_baseline">
+    </div>
+  </div>
+
+  <!-- S8: VITALS DAY 7 -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">8</span> Vital Signs — Day 7 (End of Treatment)</div>
+    <div class="section-body">
+      <table class="vitals-table">
+        <thead><tr><th>Parameter</th><th>Value</th><th>Unit</th></tr></thead>
+        <tbody>
+          <tr><td>Weight</td><td><input type="number" id="v7_weight" step="0.1" placeholder="kg" oninput="calcBMI('v7')"></td><td>kg</td></tr>
+          <tr><td>BMI <span class="tag auto" style="font-size:9px">AUTO</span></td><td><input type="text" id="v7_bmi" readonly class="auto-filled"></td><td>kg/m²</td></tr>
+          <tr><td>Pulse Rate</td><td><input type="number" id="v7_pulse" placeholder="bpm"></td><td>beats/min</td></tr>
+          <tr><td>Temperature</td><td><input type="number" id="v7_temp" step="0.1" placeholder="°C"></td><td>°C</td></tr>
+          <tr><td>Respiratory Rate</td><td><input type="number" id="v7_rr" placeholder="breaths/min"></td><td>breaths/min</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- S9: CLINICAL SCORES DAY 7 -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">9</span> Clinical Assessment Scores — Day 7 (End of Treatment)</div>
+    <div class="section-sub-header">General Symptoms</div>
+    <div class="section-body">
+      <table class="score-table">
+        <thead><tr><th style="width:38%">Sign / Symptom</th><th>Score Options</th><th style="width:80px;text-align:center">Score</th></tr></thead>
+        <tbody>
+          <tr><td>Fever</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_fever" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_fever" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d7_fever" value="2" onchange="updateScores()"><span>2</span></label><label class="score-option"><input type="radio" name="d7_fever" value="3" onchange="updateScores()"><span>3</span></label></div></td><td><div class="score-total" id="d7_fever_score">—</div></td></tr>
+          <tr><td>Chills/Rigors</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_chills" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_chills" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d7_chills" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d7_chills_score">—</div></td></tr>
+          <tr><td>Headache</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_headache" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_headache" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d7_chills" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d7_headache_score">—</div></td></tr>
+          <tr><td>Cough</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_cough" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_cough" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d7_cough" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d7_cough_score">—</div></td></tr>
+          <tr><td>Rhinitis</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_rhinitis" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_rhinitis" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d7_rhinitis" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d7_rhinitis_score">—</div></td></tr>
+          <tr><td>Vomiting</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_vomit" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_vomit" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_vomit_score">—</div></td></tr>
+          <tr><td>In-appetite</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_inapp" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_inapp" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_inapp_score">—</div></td></tr>
+          <tr><td colspan="2" style="text-align:right;font-weight:600;font-size:12px;color:var(--accent)">General Subtotal:</td><td><div class="score-total" id="d7_gen_total">0</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="section-sub-header">Pharyngitis</div>
+    <div class="section-body">
+      <table class="score-table">
+        <thead><tr><th style="width:38%">Sign / Symptom</th><th>Score Options</th><th style="width:80px;text-align:center">Score</th></tr></thead>
+        <tbody>
+          <tr><td>Sore Throat</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_sorethroat" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_sorethroat" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d7_sorethroat" value="2" onchange="updateScores()"><span>2</span></label><label class="score-option"><input type="radio" name="d7_sorethroat" value="3" onchange="updateScores()"><span>3</span></label></div></td><td><div class="score-total" id="d7_sorethroat_score">—</div></td></tr>
+          <tr><td>Pharyngeal Erythema</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_phareryt" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_phareryt" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d7_phareryt" value="2" onchange="updateScores()"><span>2</span></label><label class="score-option"><input type="radio" name="d7_phareryt" value="3" onchange="updateScores()"><span>3</span></label></div></td><td><div class="score-total" id="d7_phareryt_score">—</div></td></tr>
+          <tr><td>Tonsil Size</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_tonsil" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_tonsil" value="1" onchange="updateScores()"><span>1</span></label><label class="score-option"><input type="radio" name="d7_tonsil" value="2" onchange="updateScores()"><span>2</span></label><label class="score-option"><input type="radio" name="d7_tonsil" value="3" onchange="updateScores()"><span>3</span></label></div></td><td><div class="score-total" id="d7_tonsil_score">—</div></td></tr>
+          <tr><td>Exudate on Tonsil</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_exudate" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_exudate" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_exudate_score">—</div></td></tr>
+          <tr><td>Painful Cervical Lymphadenopathy</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_lymph" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_lymph" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d7_lymph_score">—</div></td></tr>
+          <tr><td colspan="2" style="text-align:right;font-weight:600;font-size:12px;color:var(--accent)">Pharyngitis Subtotal:</td><td><div class="score-total" id="d7_pharyn_total">0</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="section-sub-header">Acute Otitis Media</div>
+    <div class="section-body">
+      <table class="score-table">
+        <thead><tr><th style="width:38%">Sign / Symptom</th><th>Score Options</th><th style="width:80px;text-align:center">Score</th></tr></thead>
+        <tbody>
+          <tr><td>Bulging of TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_bulge" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_bulge" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_bulge_score">—</div></td></tr>
+          <tr><td>Limited/Absent Mobility of TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_tmmob" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_tmmob" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_tmmob_score">—</div></td></tr>
+          <tr><td>Otalgia or Irritability</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_otalgia" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_otalgia" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_otalgia_score">—</div></td></tr>
+          <tr><td>Air Fluid Level Behind TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_airfluid" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_airfluid" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_airfluid_score">—</div></td></tr>
+          <tr><td>Erythema of TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_erythtm" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_erythtm" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_erythtm_score">—</div></td></tr>
+          <tr><td colspan="2" style="text-align:right;font-weight:600;font-size:12px;color:var(--accent)">Otitis Media Subtotal:</td><td><div class="score-total" id="d7_otitis_total">0</div></td></tr>
+          <tr style="background:#e8eef8"><td colspan="2" style="text-align:right;font-weight:700;font-size:13px;color:var(--accent)">🔢 TOTAL EOT SCORE:</td><td><div class="score-total" id="d7_grand_total" style="background:var(--accent);color:#fff;font-size:15px">0</div></td></tr>
+        </tbody>
+      </table>
+      <input type="hidden" id="sum_eot">
+      <input type="hidden" id="sum_reduction">
+    </div>
+  </div>
+
+  <!-- S10: SAFETY -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">10</span> Safety Assessment — Adverse Events</div>
+    <div class="section-body">
+      <div class="form-field" style="margin-bottom:14px">
+        <label style="font-size:13px;font-weight:600;color:var(--text)">*Has any adverse event occurred?</label>
+        <div class="radio-group mt-8">
+          <label><input type="radio" name="ae_occurred" value="yes" onchange="toggleAETable(true)"> Yes</label>
+          <label><input type="radio" name="ae_occurred" value="no" onchange="toggleAETable(false)"> No</label>
+        </div>
+      </div>
+      <div id="aeSection" style="display:none">
+        <div class="form-grid cols-2" style="margin-bottom:10px">
+          <div class="form-field"><label>No. of Serious AEs (SAE)</label><input type="number" id="ae_serious_count" min="0" placeholder="0"></div>
+          <div class="form-field"><label>No. of Non-Serious AEs</label><input type="number" id="ae_nonserious_count" min="0" placeholder="0"></div>
+        </div>
+        <table class="ae-table"><thead><tr><th style="width:30px">AE#</th><th>*Event Name</th><th style="width:130px">*Start Date</th><th style="width:130px">*Stop Date</th><th style="width:100px">*Serious?</th><th style="width:110px">Treatment Given</th><th style="width:40px"></th></tr></thead>
+        <tbody id="aeTableBody">
+          <tr><td style="text-align:center;font-weight:600;color:var(--text-muted)">1</td><td><input type="text" placeholder="Diagnosis / event"></td><td><input type="date"></td><td><input type="date"></td><td><select><option value="">—</option><option value="SAE">Serious (SAE)</option><option value="NSAE">Non-Serious</option></select></td><td><select><option value="">—</option><option value="0">No</option><option value="1">Yes</option></select></td><td><button class="btn-del" onclick="delRow(this.closest('tr'))">✕</button></td></tr>
+        </tbody></table>
+        <div class="info-note mt-8">⚠ If serious (SAE), please complete a JRO SAE form separately.</div>
+        <div class="rep-actions"><button class="btn-add" onclick="addAERow()">+ Add AE Row</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S11: COMPLIANCE -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">11</span> Medication Compliance (Day 1–5)</div>
+    <div class="section-body">
+      <table class="compliance-table">
+        <thead><tr><th class="row-header">Aspect</th><th>Day 1</th><th>Day 2</th><th>Day 3</th><th>Day 4</th><th>Day 5</th></tr></thead>
+        <tbody>
+          <tr><td class="row-label">Dose [specify]</td>
+            <td><input type="text" id="comp_dose_1" style="width:70px" placeholder="dose"></td>
+            <td><input type="text" id="comp_dose_2" style="width:70px"></td>
+            <td><input type="text" id="comp_dose_3" style="width:70px"></td>
+            <td><input type="text" id="comp_dose_4" style="width:70px"></td>
+            <td><input type="text" id="comp_dose_5" style="width:70px"></td></tr>
+          <tr><td class="row-label">Correct Dose</td>
+            <td><input type="checkbox" id="comp_correct_1"></td><td><input type="checkbox" id="comp_correct_2"></td><td><input type="checkbox" id="comp_correct_3"></td><td><input type="checkbox" id="comp_correct_4"></td><td><input type="checkbox" id="comp_correct_5"></td></tr>
+          <tr><td class="row-label">Incorrect Dose</td>
+            <td><input type="checkbox" id="comp_incorrect_1"></td><td><input type="checkbox" id="comp_incorrect_2"></td><td><input type="checkbox" id="comp_incorrect_3"></td><td><input type="checkbox" id="comp_incorrect_4"></td><td><input type="checkbox" id="comp_incorrect_5"></td></tr>
+          <tr><td class="row-label">Frequency [specify]</td>
+            <td><input type="text" id="comp_freq_1" style="width:70px" placeholder="freq"></td>
+            <td><input type="text" id="comp_freq_2" style="width:70px"></td>
+            <td><input type="text" id="comp_freq_3" style="width:70px"></td>
+            <td><input type="text" id="comp_freq_4" style="width:70px"></td>
+            <td><input type="text" id="comp_freq_5" style="width:70px"></td></tr>
+          <tr><td class="row-label">Adherent</td>
+            <td><input type="checkbox" id="comp_adh_1"></td><td><input type="checkbox" id="comp_adh_2"></td><td><input type="checkbox" id="comp_adh_3"></td><td><input type="checkbox" id="comp_adh_4"></td><td><input type="checkbox" id="comp_adh_5"></td></tr>
+          <tr><td class="row-label">Non-Adherent</td>
+            <td><input type="checkbox" id="comp_nonadh_1"></td><td><input type="checkbox" id="comp_nonadh_2"></td><td><input type="checkbox" id="comp_nonadh_3"></td><td><input type="checkbox" id="comp_nonadh_4"></td><td><input type="checkbox" id="comp_nonadh_5"></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- S12: PALATABILITY -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">12</span> Five-Point Facial Hedonic Scale — Palatability</div>
+    <div class="section-body">
+      <div style="display:flex;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-top:8px">
+        <label style="flex:1;display:flex;flex-direction:column;align-items:center;padding:12px 8px 8px;cursor:pointer;border-right:1px solid var(--border);transition:background .12s;position:relative;font-size:13px;color:var(--text);font-weight:400"><input type="radio" name="palatability" value="1" style="position:absolute;opacity:0"><span style="font-size:26px;margin-bottom:4px">😞</span><span style="font-size:11px;color:var(--text-muted);text-align:center;line-height:1.3">Dislike<br>Very Much</span></label>
+        <label style="flex:1;display:flex;flex-direction:column;align-items:center;padding:12px 8px 8px;cursor:pointer;border-right:1px solid var(--border);transition:background .12s;position:relative;font-size:13px;color:var(--text);font-weight:400"><input type="radio" name="palatability" value="2" style="position:absolute;opacity:0"><span style="font-size:26px;margin-bottom:4px">😕</span><span style="font-size:11px;color:var(--text-muted);text-align:center;line-height:1.3">Dislike<br>a Little</span></label>
+        <label style="flex:1;display:flex;flex-direction:column;align-items:center;padding:12px 8px 8px;cursor:pointer;border-right:1px solid var(--border);transition:background .12s;position:relative;font-size:13px;color:var(--text);font-weight:400"><input type="radio" name="palatability" value="3" style="position:absolute;opacity:0"><span style="font-size:26px;margin-bottom:4px">😐</span><span style="font-size:11px;color:var(--text-muted);text-align:center;line-height:1.3">Not Sure</span></label>
+        <label style="flex:1;display:flex;flex-direction:column;align-items:center;padding:12px 8px 8px;cursor:pointer;border-right:1px solid var(--border);transition:background .12s;position:relative;font-size:13px;color:var(--text);font-weight:400"><input type="radio" name="palatability" value="4" style="position:absolute;opacity:0"><span style="font-size:26px;margin-bottom:4px">🙂</span><span style="font-size:11px;color:var(--text-muted);text-align:center;line-height:1.3">Like<br>a Little</span></label>
+        <label style="flex:1;display:flex;flex-direction:column;align-items:center;padding:12px 8px 8px;cursor:pointer;transition:background .12s;position:relative;font-size:13px;color:var(--text);font-weight:400"><input type="radio" name="palatability" value="5" style="position:absolute;opacity:0"><span style="font-size:26px;margin-bottom:4px">😄</span><span style="font-size:11px;color:var(--text-muted);text-align:center;line-height:1.3">Like<br>Very Much</span></label>
+      </div>
+    </div>
+  </div>
+
+  <!-- S13: CONCOMITANT -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">13</span> Concomitant Drugs During Study</div>
+    <div class="section-body">
+      <div style="margin-bottom:12px">
+        <strong style="font-size:12.5px;color:var(--text-muted)">Pre-defined medications:</strong>
+        <div class="form-grid cols-3 mt-8">
+          <label><input type="checkbox" id="concom_paracetamol" style="margin-right:6px"> Paracetamol</label>
+          <label><input type="checkbox" id="concom_cpm" style="margin-right:6px"> CPM</label>
+          <label><input type="checkbox" id="concom_broncho" style="margin-right:6px"> Bronchodilator</label>
+          <label><input type="checkbox" id="concom_nasal" style="margin-right:6px"> Nasal Drops</label>
+          <label><input type="checkbox" id="concom_ear" style="margin-right:6px"> Ear Drops</label>
+        </div>
+      </div>
+      <table class="concom-table"><thead><tr><th>Generic Name</th><th>Dosage</th><th>Route <span class="tag" style="display:inline-block;font-size:9px;padding:1px 4px">#</span></th><th>Date From</th><th>Date To</th><th style="width:40px"></th></tr></thead>
+      <tbody id="concomBody">
+        <tr><td><input type="text" placeholder="Generic name"></td><td><input type="text" placeholder="e.g. 5mg BD"></td><td><select><option value="">—</option><option>Oral</option><option>IV</option><option>IM</option><option>Topical</option><option>Inhaled</option><option>Nasal</option></select></td><td><input type="date"></td><td><input type="date"></td><td><button class="btn-del" onclick="delRow(this.closest('tr'))">✕</button></td></tr>
+      </tbody></table>
+      <div class="rep-actions"><button class="btn-add" onclick="addConcomRow()">+ Add Medication</button></div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="form-footer">
+    <div class="footer-meta" id="footerMeta">Not yet saved</div>
+    <div class="footer-actions">
+      <button class="btn-secondary" onclick="newSubject()">↩ New Subject</button>
+      <button class="btn-print" onclick="printForm()">🖨 Print PDF</button>
+      <button class="btn-primary" onclick="saveToDatabase()">💾 Save</button>
+      <button class="btn-lock-footer" id="lockFooterBtn" onclick="openLockModal()">🔒 Lock for Submission</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- end mainApp -->
+
+<!-- LOCK MODAL -->
+<div class="modal-overlay" id="lockModal">
+  <div class="modal-box lock-modal">
+    <div class="warning-icon">⚠️</div>
+    <h3>Lock for Submission</h3>
+    <p>Do you want to submit the form to the sponsor as <strong>no further changes will be allowed</strong> to make in the form after locking?</p>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeLockModal()">Cancel</button>
+      <button class="btn-confirm-lock" onclick="confirmLock()">Yes, continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- GENERIC MODAL -->
+<div class="modal-overlay" id="genericModal">
+  <div class="modal-box" id="genericModalContent"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── LOOKUP DATA ──
+const studyData={
+  'STD-001':'Amoxicillin-Clavulanate Pediatric Study',
+  'STD-002':'Azithromycin Upper RTI Study',
+  'STD-003':'Cefixime AOM/Pharyngitis Trial'
+};
+const centreData={
+  'CTR-01':{inv:'Dr. Kaustubh Sharma',clinic:'XYZ Pediatric Clinic, Andheri West, Mumbai',loc:'Mumbai North'},
+  'CTR-02':{inv:'Dr. Priya Mehta',clinic:'Apollo Clinic, Connaught Place, Delhi',loc:'Delhi Central'},
+  'CTR-03':{inv:'Dr. Ramesh Rao',clinic:'Bangalore Children Centre, Indiranagar',loc:'Bangalore East'}
+};
+
+// ── SESSION STATE ──
+let currentUser = null;
+let currentUserConfig = null;
+let currentSubjectKey = null; // key for Supabase record id
+let isFormLocked = false;
+const MAX_SUBJECTS = 50;
+
+// ── LOGIN ──
+function doLogin(){
+  const uname = document.getElementById('loginUser').value.trim().toLowerCase();
+  const pass = document.getElementById('loginPass').value;
+  const err = document.getElementById('loginError');
+  if(!uname || !pass){ err.textContent='Please enter username and password.'; return; }
+  const cfg = USER_CREDENTIALS[uname];
+  if(!cfg || cfg.password !== pass){ err.textContent='Invalid username or password.'; return; }
+  currentUser = uname;
+  currentUserConfig = cfg;
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('mainApp').style.display='block';
+  document.getElementById('userBadge').textContent='👤 '+cfg.displayName;
+  populateRestrictedDropdowns();
+  initSubjectSelector();
+}
+
+function doLogout(){
+  currentUser=null;currentUserConfig=null;currentSubjectKey=null;isFormLocked=false;
+  document.getElementById('mainApp').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('loginPass').value='';
+  document.getElementById('loginError').textContent='';
+  document.body.classList.remove('form-locked');
+}
+
+// ── POPULATE DROPDOWNS BASED ON USER PERMISSIONS ──
+function populateRestrictedDropdowns(){
+  const studySel = document.getElementById('studyId');
+  studySel.innerHTML = '<option value="">— Select —</option>';
+  currentUserConfig.studies.forEach(id=>{
+    if(studyData[id]) studySel.innerHTML+=`<option value="${id}">${id}</option>`;
+  });
+
+  const centreSel = document.getElementById('centreId');
+  centreSel.innerHTML = '<option value="">— Select —</option>';
+  currentUserConfig.centres.forEach(id=>{
+    const c = centreData[id];
+    if(c) centreSel.innerHTML+=`<option value="${id}">${id} — ${c.loc}</option>`;
+  });
+
+  // If only one centre, auto-select it
+  if(currentUserConfig.centres.length===1){
+    centreSel.value = currentUserConfig.centres[0];
+    onCentreSelect();
+  }
+}
+
+// ── SUBJECT SELECTOR ──
+async function initSubjectSelector(){
+  // Load all subjects for this user from Supabase
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/crf_submissions?select=id,subject_id,status,updated_at,centre_id&username=eq.${currentUser}&order=created_at.asc`,{
+      headers:{'apikey':SUPABASE_ANON,'Authorization':`Bearer ${SUPABASE_ANON}`}
+    });
+    const data = await res.json();
+    refreshSubjectSelector(data);
+  }catch(e){ console.log('Could not load subjects'); }
+}
+
+function refreshSubjectSelector(data){
+  const sel = document.getElementById('subjectSelector');
+  sel.innerHTML = '<option value="">— New Subject —</option>';
+  (data||[]).forEach(r=>{
+    const locked = r.status==='locked';
+    sel.innerHTML += `<option value="${r.id}">${r.subject_id||'(No ID)'} ${locked?'🔒':''} [${r.centre_id||''}]</option>`;
+  });
+  const count = (data||[]).length;
+  document.getElementById('subjectCountLabel').textContent = `${count}/${MAX_SUBJECTS} subjects`;
+}
+
+async function loadSubjectData(){
+  const id = document.getElementById('subjectSelector').value;
+  if(!id){ newSubject(); return; }
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/crf_submissions?id=eq.${id}&select=*`,{
+      headers:{'apikey':SUPABASE_ANON,'Authorization':`Bearer ${SUPABASE_ANON}`}
+    });
+    const arr = await res.json();
+    if(arr[0]) populateFormFromData(arr[0]);
+  }catch(e){ showToast('Error loading subject','error'); }
+}
+
+function populateFormFromData(d){
+  currentSubjectKey = d.id;
+  isFormLocked = d.status==='locked';
+
+  const s=id=>{const el=document.getElementById(id);if(el)el.value=d[id.replace(/([A-Z])/g,'_$1').toLowerCase()]||'';};
+  const setV=( id,val)=>{const el=document.getElementById(id);if(el)el.value=val||'';};
+  const setR=(name,val)=>{const el=document.querySelector(`input[name="${name}"][value="${val}"]`);if(el)el.checked=true;};
+  const setCb=(id,val)=>{const el=document.getElementById(id);if(el)el.checked=!!val;};
+
+  setV('studyId',d.study_id);onStudySelect();
+  setV('centreId',d.centre_id);onCentreSelect();
+  setV('subjectId',d.subject_id);
+  setV('subjectInitials',d.subject_initials);
+  if(d.sex)setR('sex',d.sex);
+  setV('dob',d.dob);setV('enrolDate',d.enrol_date);
+  setV('ageMonths',d.age_months);setV('ageYears',d.age_years);
+  setV('weightPt',d.weight_kg);setV('heightCm',d.height_cm);convertHeight();
+  setV('mobNo',d.mobile);setV('emailInv',d.email);setV('crcName',d.crc_name);
+  setV('pe_ga',d.pe_general);setV('pe_cvs',d.pe_cvs);setV('pe_rs',d.pe_rs);setV('pe_git',d.pe_git);setV('pe_cns',d.pe_cns);
+  setV('v1_weight',d.v1_weight);setV('v1_pulse',d.v1_pulse);setV('v1_temp',d.v1_temp);setV('v1_rr',d.v1_rr);
+  setV('v7_weight',d.v7_weight);setV('v7_pulse',d.v7_pulse);setV('v7_temp',d.v7_temp);setV('v7_rr',d.v7_rr);
+  // Scores
+  ['d1_fever','d1_chills','d1_headache','d1_cough','d1_rhinitis','d1_vomit','d1_inapp','d1_sorethroat','d1_phareryt','d1_tonsil','d1_exudate','d1_lymph','d1_bulge','d1_tmmob','d1_otalgia','d1_airfluid','d1_erythtm',
+   'd7_fever','d7_chills','d7_headache','d7_cough','d7_rhinitis','d7_vomit','d7_inapp','d7_sorethroat','d7_phareryt','d7_tonsil','d7_exudate','d7_lymph','d7_bulge','d7_tmmob','d7_otalgia','d7_airfluid','d7_erythtm'
+  ].forEach(name=>{if(d[name]!==undefined&&d[name]!=='')setR(name,String(d[name]));});
+  updateScores();
+  if(d.ae_occurred)setR('ae_occurred',d.ae_occurred);
+  toggleAETable(d.ae_occurred==='yes');
+  setV('ae_serious_count',d.ae_serious_count);setV('ae_nonserious_count',d.ae_nonserious_count);
+  for(let i=1;i<=5;i++){setV('comp_dose_'+i,d['comp_dose_'+i]);setCb('comp_correct_'+i,d['comp_correct_'+i]);}
+  setCb('concom_paracetamol',d.concom_paracetamol);setCb('concom_cpm',d.concom_cpm);setCb('concom_broncho',d.concom_broncho);setCb('concom_nasal',d.concom_nasal);setCb('concom_ear',d.concom_ear);
+
+  const updAt = d.updated_at ? new Date(d.updated_at).toLocaleString('en-IN') : '—';
+  document.getElementById('footerMeta').textContent = `Last saved: ${updAt} | User: ${currentUser} | ${isFormLocked?'🔒 LOCKED':'Draft'}`;
+
+  updateLockState();
+}
+
+function updateLockState(){
+  const locked = isFormLocked;
+  document.body.classList.toggle('form-locked', locked);
+  document.getElementById('lockedBanner').style.display = locked ? 'flex' : 'none';
+  const lb = document.getElementById('lockSubmitBtn');
+  const lfb = document.getElementById('lockFooterBtn');
+  if(locked){
+    lb.textContent='🔒 Locked for Submission';lb.classList.add('locked');lb.disabled=true;
+    lfb.textContent='🔒 Locked for Submission';lfb.classList.add('locked');lfb.disabled=true;
+  }else{
+    lb.textContent='🔒 Lock for Submission';lb.classList.remove('locked');lb.disabled=false;
+    lfb.textContent='🔒 Lock for Submission';lfb.classList.remove('locked');lfb.disabled=false;
+  }
+  const sbadge = document.getElementById('subjectStatusBadge');
+  sbadge.className='subject-status '+(locked?'locked':currentSubjectKey?'saved':'draft');
+  sbadge.textContent = locked?'🔒 Locked':currentSubjectKey?'Saved':'New';
+}
+
+function newSubject(){
+  currentSubjectKey=null;isFormLocked=false;
+  document.querySelectorAll('input:not([type=radio]):not([type=checkbox]):not(.auto-filled),select,textarea').forEach(el=>el.value='');
+  document.querySelectorAll('input[type=radio],input[type=checkbox]').forEach(el=>el.checked=false);
+  document.querySelectorAll('.score-total').forEach(el=>el.textContent='—');
+  ['d1_grand_total','d7_grand_total'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='0';});
+  document.getElementById('aeSection').style.display='none';
+  document.getElementById('footerMeta').textContent='New subject — not yet saved';
+  document.getElementById('subjectSelector').value='';
+  populateRestrictedDropdowns();
+  updateLockState();
+}
+
+// ── LOCK MODAL ──
+function openLockModal(){
+  if(isFormLocked){showToast('Form is already locked','error');return;}
+  document.getElementById('lockModal').classList.add('active');
+}
+function closeLockModal(){document.getElementById('lockModal').classList.remove('active');}
+async function confirmLock(){
+  closeLockModal();
+  await saveToDatabase(true);// save then lock
+}
+
+// ── SAVE TO DATABASE ──
+async function saveToDatabase(andLock=false){
+  const data = collectFormData();
+  if(!data.centre_id||!data.subject_id){
+    showToast('Please fill in Centre ID and Subject ID before saving','error');return;
+  }
+
+  // Collect audit trail
+  const now = new Date();
+  const auditInfo = {
+    username: currentUser,
+    user_display_name: currentUserConfig.displayName,
+    updated_at: now.toISOString(),
+    status: andLock ? 'locked' : (currentSubjectKey ? 'saved' : 'saved'),
+    lock_date: andLock ? now.toISOString() : null,
+    form_version: document.getElementById('versionLabel').textContent
+  };
+
+  const payload = {...data, ...auditInfo};
+
+  try{
+    let res;
+    if(currentSubjectKey){
+      res = await fetch(`${SUPABASE_URL}/rest/v1/crf_submissions?id=eq.${currentSubjectKey}`,{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':`Bearer ${SUPABASE_ANON}`,'Prefer':'return=representation'},
+        body:JSON.stringify(payload)
+      });
+    }else{
+      res = await fetch(`${SUPABASE_URL}/rest/v1/crf_submissions`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':`Bearer ${SUPABASE_ANON}`,'Prefer':'return=representation'},
+        body:JSON.stringify(payload)
+      });
+    }
+    if(res.ok){
+      const arr = await res.json();
+      if(arr[0]) currentSubjectKey = arr[0].id;
+      if(andLock) isFormLocked=true;
+      updateLockState();
+      const timeStr = now.toLocaleString('en-IN');
+      document.getElementById('footerMeta').textContent=`Last saved: ${timeStr} | User: ${currentUser} | ${andLock?'🔒 LOCKED':'Saved'}`;
+      showToast(andLock?'🔒 Form locked for submission':'💾 Saved successfully','success');
+      await initSubjectSelector();
+    }else{
+      const err=await res.json();
+      throw new Error(err.message||'Save failed');
+    }
+  }catch(e){
+    showToast('Save failed: '+e.message,'error');
+  }
+}
+
+// ── COLLECT FORM DATA ──
+function collectFormData(){
+  const g=id=>(document.getElementById(id)||{}).value||'';
+  const r=name=>{const el=document.querySelector(`input[name="${name}"]:checked`);return el?el.value:'';};
+  const cb=id=>(document.getElementById(id)||{}).checked?1:0;
+
+  const aeRows=[];
+  document.querySelectorAll('#aeTableBody tr').forEach((tr,i)=>{
+    const cells=tr.querySelectorAll('td');
+    if(cells.length>=6)aeRows.push({ae_no:i+1,event_name:cells[1].querySelector('input')?.value||'',start_date:cells[2].querySelector('input')?.value||'',stop_date:cells[3].querySelector('input')?.value||'',serious:cells[4].querySelector('select')?.value||'',treatment_given:cells[5].querySelector('select')?.value||''});
+  });
+  const concomRows=[];
+  document.querySelectorAll('#concomBody tr').forEach(tr=>{
+    const inputs=tr.querySelectorAll('input,select');
+    if(inputs[0]?.value)concomRows.push({name:inputs[0].value,dosage:inputs[1]?.value||'',route:inputs[2]?.value||'',date_from:inputs[3]?.value||'',date_to:inputs[4]?.value||''});
+  });
+
+  return {
+    study_name:g('studyName'),study_id:g('studyId'),centre_id:g('centreId'),location:g('location'),
+    investigator_name:g('invName'),clinic_name:g('clinicAddr'),
+    mobile:g('mobNo'),email:g('emailInv'),crc_name:g('crcName'),
+    subject_id:g('subjectId'),subject_initials:g('subjectInitials'),sex:r('sex'),
+    dob:g('dob'),enrol_date:g('enrolDate'),age_months:g('ageMonths'),age_years:g('ageYears'),
+    weight_kg:g('weightPt'),height_cm:g('heightCm'),
+    pe_general:g('pe_ga'),pe_cvs:g('pe_cvs'),pe_rs:g('pe_rs'),pe_git:g('pe_git'),pe_cns:g('pe_cns'),
+    v1_weight:g('v1_weight'),v1_bmi:g('v1_bmi'),v1_pulse:g('v1_pulse'),v1_temp:g('v1_temp'),v1_rr:g('v1_rr'),
+    d1_fever:r('d1_fever'),d1_chills:r('d1_chills'),d1_headache:r('d1_headache'),d1_cough:r('d1_cough'),d1_rhinitis:r('d1_rhinitis'),d1_vomit:r('d1_vomit'),d1_inapp:r('d1_inapp'),
+    d1_sorethroat:r('d1_sorethroat'),d1_phareryt:r('d1_phareryt'),d1_tonsil:r('d1_tonsil'),d1_exudate:r('d1_exudate'),d1_lymph:r('d1_lymph'),
+    d1_bulge:r('d1_bulge'),d1_tmmob:r('d1_tmmob'),d1_otalgia:r('d1_otalgia'),d1_airfluid:r('d1_airfluid'),d1_erythtm:r('d1_erythtm'),
+    total_baseline:g('sum_baseline'),
+    v7_weight:g('v7_weight'),v7_bmi:g('v7_bmi'),v7_pulse:g('v7_pulse'),v7_temp:g('v7_temp'),v7_rr:g('v7_rr'),
+    d7_fever:r('d7_fever'),d7_chills:r('d7_chills'),d7_headache:r('d7_headache'),d7_cough:r('d7_cough'),d7_rhinitis:r('d7_rhinitis'),d7_vomit:r('d7_vomit'),d7_inapp:r('d7_inapp'),
+    d7_sorethroat:r('d7_sorethroat'),d7_phareryt:r('d7_phareryt'),d7_tonsil:r('d7_tonsil'),d7_exudate:r('d7_exudate'),d7_lymph:r('d7_lymph'),
+    d7_bulge:r('d7_bulge'),d7_tmmob:r('d7_tmmob'),d7_otalgia:r('d7_otalgia'),d7_airfluid:r('d7_airfluid'),d7_erythtm:r('d7_erythtm'),
+    total_eot:g('sum_eot'),pct_reduction:g('sum_reduction'),
+    ae_occurred:r('ae_occurred'),
+    ae_serious_count:g('ae_serious_count'),ae_nonserious_count:g('ae_nonserious_count'),
+    adverse_events:JSON.stringify(aeRows),
+    comp_dose_1:g('comp_dose_1'),comp_dose_2:g('comp_dose_2'),comp_dose_3:g('comp_dose_3'),comp_dose_4:g('comp_dose_4'),comp_dose_5:g('comp_dose_5'),
+    comp_correct:JSON.stringify([cb('comp_correct_1'),cb('comp_correct_2'),cb('comp_correct_3'),cb('comp_correct_4'),cb('comp_correct_5')]),
+    comp_adherent:JSON.stringify([cb('comp_adh_1'),cb('comp_adh_2'),cb('comp_adh_3'),cb('comp_adh_4'),cb('comp_adh_5')]),
+    palatability:r('palatability'),
+    concom_paracetamol:cb('concom_paracetamol'),concom_cpm:cb('concom_cpm'),concom_broncho:cb('concom_broncho'),concom_nasal:cb('concom_nasal'),concom_ear:cb('concom_ear'),
+    concomitant_other:JSON.stringify(concomRows)
+  };
+}
+
+// ── FORM HELPERS ──
+function onStudySelect(){const id=document.getElementById('studyId').value;document.getElementById('studyName').value=studyData[id]||'';}
+function onCentreSelect(){const id=document.getElementById('centreId').value;const c=centreData[id];if(c){document.getElementById('invName').value=c.inv;document.getElementById('clinicAddr').value=c.clinic;document.getElementById('location').value=c.loc;}else{document.getElementById('invName').value='';document.getElementById('clinicAddr').value='';document.getElementById('location').value='';}}
+function calcAge(){const dob=document.getElementById('dob').value;const enrol=document.getElementById('enrolDate').value;if(!dob)return;const dobDate=new Date(dob);const refDate=enrol?new Date(enrol):new Date();const totalMonths=Math.floor((refDate-dobDate)/(1000*60*60*24*30.44));document.getElementById('ageMonths').value=totalMonths>0?totalMonths:'';document.getElementById('ageYears').value=totalMonths>0?(totalMonths/12).toFixed(1):'';}
+function convertHeight(){const cm=parseFloat(document.getElementById('heightCm').value);if(!isNaN(cm)&&cm>0){const totalIn=cm/2.54;const ft=Math.floor(totalIn/12);const inch=(totalIn%12).toFixed(1);document.getElementById('heightFt').value=`${ft}' ${inch}"`;}else{document.getElementById('heightFt').value='';}}
+function calcBMI(visit){let weight,height,bmiEl;if(visit==='v1'){weight=parseFloat(document.getElementById('v1_weight').value);height=parseFloat(document.getElementById('heightCm').value);bmiEl=document.getElementById('v1_bmi');}else{weight=parseFloat(document.getElementById('v7_weight').value);height=parseFloat(document.getElementById('heightCm').value);bmiEl=document.getElementById('v7_bmi');}if(weight&&height){bmiEl.value=(weight/((height/100)**2)).toFixed(2);}}
+
+const scoreGroups={d1_gen:['d1_fever','d1_chills','d1_headache','d1_cough','d1_rhinitis','d1_vomit','d1_inapp'],d1_pharyn:['d1_sorethroat','d1_phareryt','d1_tonsil','d1_exudate','d1_lymph'],d1_otitis:['d1_bulge','d1_tmmob','d1_otalgia','d1_airfluid','d1_erythtm'],d7_gen:['d7_fever','d7_chills','d7_headache','d7_cough','d7_rhinitis','d7_vomit','d7_inapp'],d7_pharyn:['d7_sorethroat','d7_phareryt','d7_tonsil','d7_exudate','d7_lymph'],d7_otitis:['d7_bulge','d7_tmmob','d7_otalgia','d7_airfluid','d7_erythtm']};
+function getRadioVal(name){const el=document.querySelector(`input[name="${name}"]:checked`);return el?parseInt(el.value):null;}
+function updateScores(){let totals={};for(const[group,fields]of Object.entries(scoreGroups)){let sum=0;fields.forEach(f=>{const v=getRadioVal(f);const el=document.getElementById(f+'_score');if(el)el.textContent=v!==null?v:'—';if(v!==null)sum+=v;});totals[group]=sum;const tot=document.getElementById(group+'_total');if(tot)tot.textContent=sum;}const d1=((totals.d1_gen||0)+(totals.d1_pharyn||0)+(totals.d1_otitis||0));const d7=((totals.d7_gen||0)+(totals.d7_pharyn||0)+(totals.d7_otitis||0));document.getElementById('d1_grand_total').textContent=d1;document.getElementById('d7_grand_total').textContent=d7;document.getElementById('sum_baseline').value=d1;document.getElementById('sum_eot').value=d7;document.getElementById('sum_reduction').value=d1>0?((d1-d7)/d1*100).toFixed(1)+'%':'';}
+
+function toggleAETable(show){document.getElementById('aeSection').style.display=show?'block':'none';}
+let aeCount=1;
+function addAERow(){aeCount++;const tr=document.createElement('tr');tr.innerHTML=`<td style="text-align:center;font-weight:600;color:var(--text-muted)">${aeCount}</td><td><input type="text" placeholder="Diagnosis / event"></td><td><input type="date"></td><td><input type="date"></td><td><select><option value="">—</option><option value="SAE">Serious (SAE)</option><option value="NSAE">Non-Serious</option></select></td><td><select><option value="">—</option><option value="0">No</option><option value="1">Yes</option></select></td><td><button class="btn-del" onclick="delRow(this.closest('tr'))">✕</button></td>`;document.getElementById('aeTableBody').appendChild(tr);}
+function addMedHist(){const c=document.getElementById('medHistRows').querySelectorAll('.rep-row').length+1;const r=document.createElement('div');r.className='rep-row has-num';r.style='grid-template-columns:1fr 3fr 160px 160px auto';r.innerHTML=`<span class="row-num">${c}</span><div class="form-field"><label>Condition</label><input type="text" placeholder="Condition name"></div><div class="form-field"><label>Start Date</label><input type="date"></div><div class="form-field"><label>Stop Date</label><input type="date"></div><div style="display:flex;align-items:flex-end;padding-bottom:1px"><button class="btn-del" onclick="delRow(this)">✕</button></div>`;document.getElementById('medHistRows').appendChild(r);}
+function addConcRow(){const c=document.getElementById('concRows').querySelectorAll('.rep-row').length+1;const r=document.createElement('div');r.className='rep-row has-num';r.style='grid-template-columns:1fr 3fr 160px 160px 110px auto';r.innerHTML=`<span class="row-num">${c}</span><div class="form-field"><label>Condition</label><input type="text" placeholder="Condition"></div><div class="form-field"><label>Start Date</label><input type="date"></div><div class="form-field"><label>Stop Date</label><input type="date"></div><div class="form-field"><label>Status</label><select><option value="">Select</option><option>Ongoing</option><option>Resolved</option></select></div><div style="display:flex;align-items:flex-end;padding-bottom:1px"><button class="btn-del" onclick="delRow(this)">✕</button></div>`;document.getElementById('concRows').appendChild(r);}
+function addConcomRow(){const tr=document.createElement('tr');tr.innerHTML=`<td><input type="text" placeholder="Generic name"></td><td><input type="text" placeholder="Dosage"></td><td><select><option value="">—</option><option>Oral</option><option>IV</option><option>IM</option><option>Topical</option><option>Inhaled</option><option>Nasal</option></select></td><td><input type="date"></td><td><input type="date"></td><td><button class="btn-del" onclick="delRow(this.closest('tr'))">✕</button></td>`;document.getElementById('concomBody').appendChild(tr);}
+function delRow(el){el.closest('.rep-row,tr')?.remove();}
+function printForm(){window.print();}
+function showToast(msg,type='',dur=3500){const t=document.getElementById('toast');t.textContent=msg;t.className='show '+(type||'');setTimeout(()=>t.className='',dur);}
+</script>
+</body>
+</html>
