@@ -396,17 +396,23 @@ function switchTab(name){
 async function loadData(){
   document.getElementById('lastUpdated').textContent='Refreshing…';
   try{
-    const res=await fetch(`${SUPABASE_URL}/rest/v1/crf_submissions?select=*&order=updated_at.desc`,{
-      headers:{'apikey':SUPABASE_ANON,'Authorization':`Bearer ${SUPABASE_ANON}`}
+    // Use submitted_at as fallback order column — always exists
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/crf_submissions?select=*&order=submitted_at.desc`,{
+      headers:{'apikey':SUPABASE_ANON,'Authorization':`Bearer ${SUPABASE_ANON}`,'Range-Unit':'items','Range':'0-999'}
     });
-    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    if(!res.ok){
+      const errBody=await res.text();
+      throw new Error(`HTTP ${res.status}: ${errBody}`);
+    }
     allData=await res.json();
-    document.getElementById('lastUpdated').textContent=`Last updated: ${new Date().toLocaleTimeString('en-IN')}`;
+    // Normalise: fill in updated_at from submitted_at if missing
+    allData=allData.map(r=>({...r,updated_at:r.updated_at||r.submitted_at||null}));
+    document.getElementById('lastUpdated').textContent=`Last updated: ${new Date().toLocaleTimeString('en-IN')} (${allData.length} records)`;
     updateStats();
     updateCentreTable();
     renderTable();
   }catch(e){
-    document.getElementById('lastUpdated').textContent='Connection error';
+    document.getElementById('lastUpdated').textContent='Connection error — check config';
     showToast('Connection failed: '+e.message,'error');
   }
 }
@@ -433,8 +439,8 @@ function updateCentreTable(){
   const rows = Object.entries(CENTRE_INFO).map(([id,info])=>{
     const recs = groups[id]||[];
     const ae = recs.filter(r=>r.ae_occurred==='yes').length;
-    const sae = recs.reduce((s,r)=>s+parseInt(r.ae_serious_count||0),0);
-    const nsae = recs.reduce((s,r)=>s+parseInt(r.ae_nonserious_count||0),0);
+    const sae = recs.reduce((s,r)=>s+parseInt(r.ae_sae_count||0),0);
+    const nsae = recs.reduce((s,r)=>s+parseInt(r.ae_nonsae_count||0),0);
     const locked = recs.filter(r=>r.status==='locked').length;
     const lastRec = recs.sort((a,b)=>new Date(b.updated_at||0)-new Date(a.updated_at||0))[0];
     const lastUp = lastRec?.updated_at ? new Date(lastRec.updated_at).toLocaleString('en-IN') : '—';
@@ -550,7 +556,7 @@ function openDetail(idx){
     </div>
     <div class="detail-section">
       <h4>Adverse Events</h4>
-      ${dr('AE Occurred',r.ae_occurred)} ${dr('Serious AEs (SAE)',r.ae_serious_count||'0','mono')} ${dr('Non-Serious AEs',r.ae_nonserious_count||'0','mono')} ${dr('AE Details',r.adverse_events?JSON.parse(r.adverse_events||'[]').map(a=>a.event_name).filter(Boolean).join(', ')||'—':'—')}
+      ${dr('AE Occurred',r.ae_occurred)} ${dr('Serious AEs (SAE)',r.ae_sae_count||'0','mono')} ${dr('Non-Serious AEs',r.ae_nonsae_count||'0','mono')} ${dr('AE Details',(()=>{try{return JSON.parse(r.adverse_events||'[]').map(a=>a.event_name).filter(Boolean).join(', ')||'—';}catch(e){return '—';}})()')}
     </div>
     <div class="detail-section">
       <h4>Concomitant Medications</h4>
@@ -640,7 +646,7 @@ function exportDetailPDF(){
 
   section('ADVERSE EVENTS');
   row('AE Occurred:',r.ae_occurred||'—','','');
-  row('Serious AEs (SAE):',r.ae_serious_count||'0','Non-Serious AEs:',r.ae_nonserious_count||'0');
+  row('Serious AEs (SAE):',r.ae_sae_count||'0','Non-Serious AEs:',r.ae_nonsae_count||'0');
   try{
     const aeArr = JSON.parse(r.adverse_events||'[]');
     aeArr.forEach((ae,i)=>row(`AE ${i+1}:`,ae.event_name||'—','Serious:',ae.serious||'—'));
