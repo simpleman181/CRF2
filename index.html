@@ -279,11 +279,12 @@ body.form-locked .btn-add,body.form-locked .btn-del,body.form-locked .btn-lock-f
   <!-- SUBJECT SELECTOR -->
   <div class="subject-selector">
     <label>Subject:</label>
-    <select id="subjectSelector" onchange="onSubjectSelect()">
-      <option value="">— New Subject —</option>
+    <select id="subjectSelector" onchange="onSubjectSelect()" style="min-width:200px">
+      <option value="">— Select Subject —</option>
     </select>
     <span class="subject-status draft" id="subjectStatusBadge">New</span>
-    <button class="btn-add" onclick="newSubjectClicked()" style="font-size:12px;padding:4px 12px">+ New Subject</button>
+    <button class="btn-add" onclick="openAddSubjectModal()" style="font-size:12px;padding:5px 14px;background:#1a4a8a;color:#fff;border-color:#1a4a8a">➕ Add New Subject</button>
+    <button class="btn-add" onclick="newSubjectClicked()" style="font-size:12px;padding:5px 14px">🗑 Clear Form</button>
     <span style="font-size:11.5px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace" id="subjectCountLabel"></span>
   </div>
 
@@ -658,6 +659,36 @@ body.form-locked .btn-add,body.form-locked .btn-del,body.form-locked .btn-lock-f
 </div><!-- /container -->
 </div><!-- /mainApp -->
 
+<!-- ADD NEW SUBJECT MODAL -->
+<div class="modal-overlay" id="addSubjectModal">
+  <div class="modal-box" style="max-width:480px;text-align:left">
+    <h3 style="color:var(--accent);margin-bottom:16px;font-size:16px">➕ Register New Subject</h3>
+    <div style="display:grid;gap:14px">
+      <div class="form-field">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Study ID <span style="color:var(--mandatory)">*</span></label>
+        <input type="text" id="ns_studyId" readonly class="auto-filled" style="background:#f0f4fb;color:var(--accent);font-style:italic">
+      </div>
+      <div class="form-field">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Centre ID <span style="color:var(--mandatory)">*</span></label>
+        <input type="text" id="ns_centreId" readonly class="auto-filled" style="background:#f0f4fb;color:var(--accent);font-style:italic">
+      </div>
+      <div class="form-field">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Subject No. / ID <span style="color:var(--mandatory)">*</span></label>
+        <input type="text" id="ns_subjectId" placeholder="e.g. SUB-001" style="border:1.5px solid var(--border)">
+      </div>
+      <div class="form-field">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Subject Initials</label>
+        <input type="text" id="ns_initials" placeholder="e.g. A.B.C." maxlength="10">
+      </div>
+      <div id="ns_error" style="color:var(--mandatory);font-size:12px;display:none"></div>
+    </div>
+    <div class="modal-btns" style="margin-top:20px">
+      <button class="btn-modal-cancel" onclick="closeAddSubjectModal()">Cancel</button>
+      <button class="btn-modal-save" onclick="createNewSubject()" id="ns_saveBtn">Register Subject</button>
+    </div>
+  </div>
+</div>
+
 <!-- LOCK MODAL -->
 <div class="modal-overlay" id="lockModal">
   <div class="modal-box warn">
@@ -848,13 +879,19 @@ function populateFormFromData(d){
   // AE
   if(d.ae_occurred){sr('ae_occurred',d.ae_occurred);if(d.ae_occurred==='yes'){document.getElementById('aeSection').style.display='block';restoreTouch('s10');}else{document.getElementById('aeSection').style.display='none';}}
   // Compliance
-  for(let i=1;i<=5;i++){
-    sv('comp_dose_'+i,d['comp_dose_'+i]);sv('comp_freq_'+i,d['comp_freq_'+i]);
-    const dci=d['dose_ci_'+i]||'';const adi=d['adh_'+i]||'';
-    if(dci){const e=document.querySelector(`input[name="dose_ci_${i}"][value="${dci}"]`);if(e)e.checked=true;}
-    if(adi){const e=document.querySelector(`input[name="adh_${i}"][value="${adi}"]`);if(e)e.checked=true;}
-    if(d['comp_dose_'+i])restoreTouch('s11');
-  }
+  try{
+    const comp=JSON.parse(d.compliance_data||'{}');
+    for(let i=1;i<=5;i++){
+      const doses=comp.doses||[];const freqs=comp.freqs||[];const dci=comp.dose_ci||[];const adh=comp.adherence||[];
+      sv('comp_dose_'+(i),doses[i-1]||d['comp_dose_'+i]||'');
+      sv('comp_freq_'+(i),freqs[i-1]||d['comp_freq_'+i]||'');
+      if(dci[i-1]){const e=document.querySelector(`input[name="dose_ci_${i}"][value="${dci[i-1]}"]`);if(e)e.checked=true;}
+      else if(d['dose_ci_'+i]){const e=document.querySelector(`input[name="dose_ci_${i}"][value="${d['dose_ci_'+i]}"]`);if(e)e.checked=true;}
+      if(adh[i-1]){const e=document.querySelector(`input[name="adh_${i}"][value="${adh[i-1]}"]`);if(e)e.checked=true;}
+      else if(d['adh_'+i]){const e=document.querySelector(`input[name="adh_${i}"][value="${d['adh_'+i]}"]`);if(e)e.checked=true;}
+      if(doses[0]||d['comp_dose_1'])restoreTouch('s11');
+    }
+  }catch(e){}
   // Palatability
   if(d.palatability){document.getElementById('pal'+d.palatability).checked=true;updatePalUI();restoreTouch('s12');}
   // Concomitant
@@ -1123,12 +1160,14 @@ function collectFormData(){
     d7_bulge:rv('d7_bulge'),d7_tmmob:rv('d7_tmmob'),d7_otalgia:rv('d7_otalgia'),d7_airfluid:rv('d7_airfluid'),d7_erythtm:rv('d7_erythtm'),
     total_eot:g('sum_eot'),pct_reduction:g('sum_reduction'),
     ae_occurred:rv('ae_occurred'),
-    ae_sae_count:saeCount,ae_nonsae_count:nsaeCount,
     adverse_events:JSON.stringify(aeRows),
-    comp_dose_1:g('comp_dose_1'),comp_dose_2:g('comp_dose_2'),comp_dose_3:g('comp_dose_3'),comp_dose_4:g('comp_dose_4'),comp_dose_5:g('comp_dose_5'),
-    comp_freq_1:g('comp_freq_1'),comp_freq_2:g('comp_freq_2'),comp_freq_3:g('comp_freq_3'),comp_freq_4:g('comp_freq_4'),comp_freq_5:g('comp_freq_5'),
-    dose_ci_1:rv('dose_ci_1'),dose_ci_2:rv('dose_ci_2'),dose_ci_3:rv('dose_ci_3'),dose_ci_4:rv('dose_ci_4'),dose_ci_5:rv('dose_ci_5'),
-    adh_1:rv('adh_1'),adh_2:rv('adh_2'),adh_3:rv('adh_3'),adh_4:rv('adh_4'),adh_5:rv('adh_5'),
+    // Compliance stored as JSON blobs (avoids per-column schema issues)
+    compliance_data:JSON.stringify({
+      doses:[g('comp_dose_1'),g('comp_dose_2'),g('comp_dose_3'),g('comp_dose_4'),g('comp_dose_5')],
+      freqs:[g('comp_freq_1'),g('comp_freq_2'),g('comp_freq_3'),g('comp_freq_4'),g('comp_freq_5')],
+      dose_ci:[rv('dose_ci_1'),rv('dose_ci_2'),rv('dose_ci_3'),rv('dose_ci_4'),rv('dose_ci_5')],
+      adherence:[rv('adh_1'),rv('adh_2'),rv('adh_3'),rv('adh_4'),rv('adh_5')]
+    }),
     palatability:rv('palatability'),
     concom_yn:rv('concom_yn'),
     concom_paracetamol:cb('concom_paracetamol'),concom_cpm:cb('concom_cpm'),concom_broncho:cb('concom_broncho'),concom_nasal:cb('concom_nasal'),concom_ear:cb('concom_ear'),
@@ -1143,11 +1182,14 @@ function validateForLock(data){
   if(!data.centre_id)errors.push('Centre ID is required');
   if(!data.subject_id)errors.push('Subject ID is required');
   if(!data.palatability)errors.push('Palatability (Section 12) must be selected');
+  // Validate compliance from form directly
+  const rv2=name=>{const el=document.querySelector(`input[name="${name}"]:checked`);return el?el.value:'';};
+  const g2=id=>(document.getElementById(id)||{}).value||'';
   for(let i=1;i<=5;i++){
-    if(!data['comp_dose_'+i])errors.push(`Compliance Day ${i}: Dose is required`);
-    if(!data['comp_freq_'+i])errors.push(`Compliance Day ${i}: Frequency is required`);
-    if(!data['dose_ci_'+i])errors.push(`Compliance Day ${i}: Correct/Incorrect dose must be selected`);
-    if(!data['adh_'+i])errors.push(`Compliance Day ${i}: Adherent/Non-Adherent must be selected`);
+    if(!g2('comp_dose_'+i))errors.push('Compliance Day '+i+': Dose is required');
+    if(!g2('comp_freq_'+i))errors.push('Compliance Day '+i+': Frequency is required');
+    if(!rv2('dose_ci_'+i))errors.push('Compliance Day '+i+': Correct/Incorrect dose must be selected');
+    if(!rv2('adh_'+i))errors.push('Compliance Day '+i+': Adherent/Non-Adherent must be selected');
   }
   return errors;
 }
@@ -1207,6 +1249,78 @@ async function saveToDatabase(andLock=false){
 function openLockModal(){if(isFormLocked){showToast('Form is already locked','error');return;}document.getElementById('lockModal').classList.add('active');}
 function closeLockModal(){document.getElementById('lockModal').classList.remove('active');}
 async function confirmLock(){closeLockModal();await saveToDatabase(true);}
+
+// ── ADD NEW SUBJECT MODAL ──
+function openAddSubjectModal(){
+  // Pre-fill study and centre from current user config
+  const studySel=document.getElementById('studyId');
+  const centreSel=document.getElementById('centreId');
+  const nsStudy=document.getElementById('ns_studyId');
+  const nsCentre=document.getElementById('ns_centreId');
+  // Use currently selected values or auto-fill first option
+  nsStudy.value=studySel.value||(currentUserConfig.studies[0]||'');
+  nsCentre.value=centreSel.value||(currentUserConfig.centres[0]||'');
+  document.getElementById('ns_subjectId').value='';
+  document.getElementById('ns_initials').value='';
+  document.getElementById('ns_error').style.display='none';
+  document.getElementById('addSubjectModal').classList.add('active');
+  setTimeout(()=>document.getElementById('ns_subjectId').focus(),100);
+}
+function closeAddSubjectModal(){document.getElementById('addSubjectModal').classList.remove('active');}
+
+async function createNewSubject(){
+  const subjectId=document.getElementById('ns_subjectId').value.trim();
+  const initials=document.getElementById('ns_initials').value.trim();
+  const studyId=document.getElementById('ns_studyId').value;
+  const centreId=document.getElementById('ns_centreId').value;
+  const errEl=document.getElementById('ns_error');
+  const btn=document.getElementById('ns_saveBtn');
+
+  if(!subjectId){errEl.textContent='Subject ID is required.';errEl.style.display='block';return;}
+  if(!studyId||!centreId){errEl.textContent='Study ID and Centre ID must be set. Please select them in the form first.';errEl.style.display='block';return;}
+
+  // Check for duplicate subject ID for this user
+  const existing=document.querySelectorAll('#subjectSelector option');
+  for(const opt of existing){if(opt.text.startsWith(subjectId+' ')||opt.text===subjectId){errEl.textContent='This Subject ID already exists. Please use a unique ID.';errEl.style.display='block';return;}}
+
+  btn.disabled=true;btn.textContent='Registering…';
+  const now=new Date();
+  const payload={
+    subject_id:subjectId,
+    subject_initials:initials,
+    study_id:studyId,
+    study_name:studyData[studyId]||'',
+    centre_id:centreId,
+    location:centreData[centreId]?.loc||'',
+    investigator_name:centreData[centreId]?.inv||'',
+    clinic_name:centreData[centreId]?.clinic||'',
+    username:currentUser,
+    user_display_name:currentUserConfig.displayName,
+    updated_at:now.toISOString(),
+    status:'saved',
+    form_version:document.getElementById('versionLabel').textContent
+  };
+  try{
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/crf_submissions`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':`Bearer ${SUPABASE_ANON}`,'Prefer':'return=representation'},
+      body:JSON.stringify(payload)
+    });
+    if(!res.ok){const e=await res.json();throw new Error(e.message||JSON.stringify(e));}
+    const arr=await res.json();
+    const newId=arr[0]?.id;
+    closeAddSubjectModal();
+    await loadSubjectList();
+    // Select the newly created subject and load it
+    if(newId){
+      document.getElementById('subjectSelector').value=newId;
+      await onSubjectSelect();
+    }
+    showToast('✅ Subject '+subjectId+' registered successfully','success');
+  }catch(e){
+    errEl.textContent='Failed to register: '+e.message;errEl.style.display='block';
+  }finally{btn.disabled=false;btn.textContent='Register Subject';}
+}
 
 function printForm(){window.print();}
 function showToast(msg,type='',dur=4000){const t=document.getElementById('toast');t.textContent=msg;t.className='show '+(type||'');setTimeout(()=>t.className='',dur);}

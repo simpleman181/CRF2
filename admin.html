@@ -556,7 +556,7 @@ function openDetail(idx){
     </div>
     <div class="detail-section">
       <h4>Adverse Events</h4>
-      ${dr('AE Occurred',r.ae_occurred)} ${dr('Serious AEs (SAE)',r.ae_sae_count||'0','mono')} ${dr('Non-Serious AEs',r.ae_nonsae_count||'0','mono')} ${dr('AE Details',(()=>{try{return JSON.parse(r.adverse_events||'[]').map(a=>a.event_name).filter(Boolean).join(', ')||'—';}catch(e){return '—';}})()')}
+      ${dr('AE Occurred',r.ae_occurred)} ${dr('Serious AEs (SAE)',r.ae_sae_count||'0','mono')} ${dr('Non-Serious AEs',r.ae_nonsae_count||'0','mono')} ${dr('AE Details',(function(){try{return JSON.parse(r.adverse_events||'[]').map(function(a){return a.event_name;}).filter(Boolean).join(', ')||'—';}catch(e){return '—';}})())}
     </div>
     <div class="detail-section">
       <h4>Concomitant Medications</h4>
